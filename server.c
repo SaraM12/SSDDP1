@@ -78,6 +78,7 @@ int connection ()
 
 	printf("Waiting for a connection\n");
 
+	return 0;
 }
 
 void *connection_handler(void *sock)
@@ -197,7 +198,7 @@ void *connection_handler(void *sock)
 			{
 				existingClient = clients[i]; 
 				
-				if(strcmp (existingClient.socket, my_socket) == 0)
+				if( existingClient.socket ==  my_sock )
 				{
 					found = i;
 				}
@@ -231,7 +232,7 @@ void *connection_handler(void *sock)
 			{
 				existingClient = clients[i]; 
 				
-				if(strcmp (existingClient.socket, my_socket) == 0)
+				if( existingClient.socket ==  my_sock )
 				{
 					found = i;
 				}
@@ -268,7 +269,10 @@ void *connection_handler(void *sock)
 int main (int argc, char *argv[]){
 
 
-	connection();
+	if (connection() != 0)
+	{
+		return -1;
+	}
 
 	registered = 0;
 
