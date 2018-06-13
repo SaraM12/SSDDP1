@@ -9,5 +9,4 @@ client : clientExample.c
 	$(CC) clientExample.c -o client
 
 clean : 
-	rm server client *.o
-	
+	rm server client 	

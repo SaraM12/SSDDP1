@@ -14,7 +14,7 @@
 
 #define MAX_SIZE 1024
 #define STATE_CON 1	//state value when connected
-#define STATE_UNCON 0	//state value when unconnected
+#define STATE_DISCON 0	//state value when disconnected
 
 
 int sock_desc;
@@ -81,6 +81,157 @@ int connection ()
 	return 0;
 }
 
+void registerUser(char client_message [MAX_SIZE], int my_sock ){
+
+	struct client aux;	
+	struct client existingClient;
+	int found = 0;			
+
+	strncpy(aux.name, client_message + 9, 10);		
+
+	pthread_mutex_lock(&mutex);
+
+	int i = 0;			
+
+	while (i < registered && found == 0 )
+	{
+		existingClient = clients[i]; 
+
+		if(strcmp (existingClient.name, aux.name) == 0){
+			found++;
+			i = registered;
+		}
+		i++;
+	}
+
+	if (found == 0)
+	{
+		aux.state = 0;
+		aux.socket = my_sock ; 
+		clients[registered] = aux;
+		registered++;
+		write (my_sock, "User registered\n", MAX_SIZE);
+
+	} else 
+	{
+		write (my_sock, "Couldn't register this userName, it is already in use \n", MAX_SIZE);
+	} 
+
+	pthread_mutex_unlock(&mutex);	
+}
+
+void deleteUser(char client_message [MAX_SIZE], int my_sock){
+
+	pthread_mutex_lock(&mutex);
+	struct client existingClient;
+	int found = 0;			
+	char name [256];	
+
+	strncpy(name, client_message + 7, 10);		
+
+	int i = 0;		
+
+	while (i < registered && found == 0 )
+	{
+		existingClient = clients[i]; 
+
+		if(strcmp (existingClient.name, name) == 0)
+		{
+			found = i;
+			i = registered;
+		}
+		i++;
+	}
+
+	if (found == 1)
+	{
+		sprintf(clients[found].name, "");
+		clients[found].state = -1;
+		clients[found].socket = -1;	
+		write (my_sock, "User deleted\n", MAX_SIZE);
+		registered--;
+	}
+	else 
+	{
+		write (my_sock, "Couldn't delete this userName, it was not in use \n", MAX_SIZE);
+	} 
+
+	pthread_mutex_unlock(&mutex);
+}
+
+void connectClient(char client_message [MAX_SIZE], int my_sock){
+
+	pthread_mutex_lock(&mutex);
+	struct client existingClient;
+	int found = 0;			
+	char name [256];	
+	int i = 0;		
+
+	while (i < registered && found == 0 )
+	{
+		existingClient = clients[i]; 
+
+		if( existingClient.socket ==  my_sock )
+		{
+			found = i;
+		}
+		i++;
+	}
+
+	if (found == 1)
+	{
+		if (clients[found].state == STATE_CON) 
+		{
+			write (my_sock, "User already connected\n", MAX_SIZE);
+		}
+		else {
+			clients[found].state = 1;
+			write (my_sock, "User connected\n", MAX_SIZE);
+		}
+	} else{
+		write (my_sock, "The user name doesn't exist.\n", MAX_SIZE);
+	}
+
+	pthread_mutex_unlock(&mutex);
+}
+
+void disconnectUser(char client_message [MAX_SIZE], int my_sock){
+
+	pthread_mutex_lock(&mutex);
+	struct client existingClient;
+	int found = 0;			
+	char name [256];	
+	int i = 0;		
+
+	while (i < registered && found == 0 )
+	{
+		existingClient = clients[i]; 
+
+		if( existingClient.socket ==  my_sock )
+		{
+			found = i;
+		}
+		i++;
+	}
+
+	if (found == 1)
+	{
+		if (clients[found].state == STATE_DISCON) 
+		{
+			write (my_sock, "User already disconnected\n", MAX_SIZE);
+		}
+		else {
+			clients[found].state = 1;
+			write (my_sock, "User disconnected\n", MAX_SIZE);
+		}
+	} else{
+		write (my_sock, "The user name doesn't exist.\n", MAX_SIZE);
+	}
+
+	pthread_mutex_unlock(&mutex);
+
+}
+
 void *connection_handler(void *sock)
 {
 	char client_message [MAX_SIZE];
@@ -102,156 +253,21 @@ void *connection_handler(void *sock)
 
 		//REGISTER
 		if ( strstr(client_message, "REGISTER") != NULL){
-
-			struct client aux;	
-			struct client existingClient;
-			int found = 0;			
-	
-			strncpy(aux.name, client_message + 9, 10);		
-		
-			pthread_mutex_lock(&mutex);
-			
-			int i = 0;			
-
-			while (i < registered && found == 0 )
-			{
-				existingClient = clients[i]; 
-				
-				if(strcmp (existingClient.name, aux.name) == 0)
-				{
-				
-					found++;
-					i = registered;
-				}
-				i++;
-			}
-
-			if (found == 0)
-			{
-				aux.state = 0;
-				aux.socket = my_sock ; 
-
-				clients[registered] = aux;
-
-				registered++;
-
-
-				write (my_sock, "User registered\n", MAX_SIZE);
-
-			} else 
-			{
-				write (my_sock, "Couldn't register this userName, it was already in use \n", MAX_SIZE);
-			} 
-
-			pthread_mutex_unlock(&mutex);	
-			printf("After sending \n");
+			registerUser(client_message, my_sock);
 		}
 		//UNREGISTER
-		else if (strstr(client_message, "DELETE") != NULL)
-		{
-			pthread_mutex_lock(&mutex);
-			struct client existingClient;
-			int found = 0;			
-			char name [256];	
-
-			strncpy(name, client_message + 7, 10);		
-			
-			int i = 0;		
-
-			while (i < registered && found == 0 )
-			{
-				existingClient = clients[i]; 
-				
-				if(strcmp (existingClient.name, name) == 0)
-				{
-					found = i;
-					i = registered;
-				}
-				i++;
-			}
-		
-			if (found == 1)
-			{
-				sprintf(clients[found].name, "");
-				clients[found].state = -1;
-				clients[found].socket = -1;	
-				write (my_sock, "User deleted\n", MAX_SIZE);
-				registered--;
-			}
-			 else 
-			{
-				write (my_sock, "Couldn't delete this userName, it was not in use \n", MAX_SIZE);
-			} 
-		
-			pthread_mutex_unlock(&mutex);
+		else if (strstr(client_message, "DELETE") != NULL){
+			deleteUser(client_message, my_sock);
 		}
 		//CONNECT
 		else if (strstr(client_message, "CONNECT") != NULL)
 		{
-			pthread_mutex_lock(&mutex);
-			struct client existingClient;
-			int found = 0;			
-			char name [256];	
-			int i = 0;		
-
-			while (i < registered && found == 0 )
-			{
-				existingClient = clients[i]; 
-				
-				if( existingClient.socket ==  my_sock )
-				{
-					found = i;
-				}
-				i++;
-			}
-		
-			if (found == 1)
-			{
-				if (clients[found].state == 1) 
-				{
-					write (my_sock, "User already connected\n", MAX_SIZE);
-				}
-				else {
-					clients[found].state = 1;
-					write (my_sock, "User connected\n", MAX_SIZE);
-				}
-			}
-
-			pthread_mutex_unlock(&mutex);
+			connectClient(client_message, my_sock);
 		}
 		//DISCONNECT
 		else if (strstr(client_message, "OUT") != NULL)
 		{
-			pthread_mutex_lock(&mutex);
-			struct client existingClient;
-			int found = 0;			
-			char name [256];	
-			int i = 0;		
-
-			while (i < registered && found == 0 )
-			{
-				existingClient = clients[i]; 
-				
-				if( existingClient.socket ==  my_sock )
-				{
-					found = i;
-				}
-				i++;
-			}
-		
-			if (found == 1)
-			{
-				if (clients[found].state == 1) 
-				{
-					write (my_sock, "User already connected\n", MAX_SIZE);
-				}
-				else {
-					clients[found].state = 1;
-					write (my_sock, "User connected\n", MAX_SIZE);
-				}
-			}
-
-			pthread_mutex_unlock(&mutex);
+			disconnectUser(client_message, my_sock);
 		}
 		else 	
 		{
@@ -259,12 +275,7 @@ void *connection_handler(void *sock)
 		}
 
 	}
-
-
-
 }
-
-
 
 int main (int argc, char *argv[]){
 
@@ -275,29 +286,41 @@ int main (int argc, char *argv[]){
 	}
 
 	registered = 0;
+	int aux = -1; //hilos creados
+	pthread_t thread[MAX_SIZE];
 
 	while(1)
 	{
 
 		//ACCEPT
 		int aux = sizeof(struct sockaddr_in);
+		
+		printf("Antes de aceptar\n");
+		
 		int client_sock = accept ( sock_desc, (struct sockaddr * ) &client, (socklen_t* ) &aux ); 
+
+		printf("Conexión aceptada\n");
 
 		if ( client_sock < 0)
 		{
-
 			printf("An error occurred while accepting\n");
 			return -1;
 		}
 
-		pthread_t thread;
 		int my_sock;
 		my_sock = client_sock;
 
-		pthread_create (&thread, NULL, connection_handler, &my_sock);
+		aux++;
+		pthread_create (&thread[aux], NULL, connection_handler, &my_sock);
+		
+	}
+	
+	for (int i=0; i<aux; i++){
 
-		pthread_join(thread, NULL);
+		pthread_join(thread[i], NULL);
+	
 	}
 
+	
 	return 1;
 }
